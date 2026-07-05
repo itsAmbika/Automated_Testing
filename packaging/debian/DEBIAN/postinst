@@ -1,0 +1,55 @@
+
+#!/bin/bash
+#
+# postinst — runs as root after dpkg lays down the .deb contents.
+# Installs Python runtime dependencies and downloads Chromium for Playwright.
+# The agent itself never requires root at runtime [1] — this is a one-time
+# package-install step, which is allowed.
+
+set -e
+
+echo "[jiopc-agent] Installing Python runtime dependencies ..."
+
+# Ubuntu 24.04 (PEP 668) requires --break-system-packages for system-wide
+# pip installs. --ignore-installed skips packages installed by apt (whose
+# RECORD files don't exist and cannot be uninstalled by pip). The result:
+# pip installs missing packages fresh into /usr/local/lib/, leaving
+# apt-managed packages under /usr/lib/python3/dist-packages/ untouched.
+pip3 install \
+    --break-system-packages \
+    --ignore-installed \
+    playwright \
+    psutil \
+    pyxdg \
+    pyyaml \
+    openai \
+    httpx \
+    pyee \
+    greenlet \
+    anyio \
+    jiter \
+    pydantic \
+    sniffio \
+    tqdm \
+    typing-extensions \
+    httpcore \
+    h11 \
+    annotated-types \
+    pydantic-core \
+    typing-inspection
+
+echo "[jiopc-agent] Downloading Chromium for Playwright (Part A) ..."
+
+# Playwright needs its own Chromium binary. Install it system-wide so any
+# user can invoke the agent. --with-deps pulls in system libraries; if the
+# apt cache is stale, fall back to browser-only.
+playwright install --with-deps chromium \
+    || playwright install chromium \
+    || echo "[jiopc-agent] WARNING: Chromium install failed; run 'playwright install chromium' manually."
+
+echo "[jiopc-agent] Installation complete."
+echo ""
+echo "  Run the agent:   jiopc-agent --config /opt/jiopc-agent/configs/jiopc-agent.yaml"
+echo "  Configure LLM:   see README.md for LLM_BASE_URL / LLM_MODEL / LLM_API_KEY"
+
+exit 0
