@@ -1,0 +1,6 @@
+#!/bin/bash
+#
+# jiopc-agent — thin wrapper for the JioPC Automated Testing Agent.
+# Forwards all arguments to /opt/jiopc-agent/jiopc_agent.py.
+
+exec python3 /opt/jiopc-agent/jiopc_agent.py "$@"

@@ -1,0 +1,337 @@
+# ============================================================================
+# jiopc-agent.yaml  —  JioPC Automated Testing Agent configuration
+# Location: configs/jiopc-agent.yaml
+#
+# This file drives ALL test cases. No app names or URLs are hardcoded in the
+# Python code — everything the agent tests is defined here. [1]
+#
+# Sections:
+#   1. agent             — log path, prompt path, run order        [spec §3]
+#   2. web_apps          — Part A test cases                       [spec §3]
+#   3. native_apps       — Part B test cases                       [spec §3]
+#   4. desktop_presence  — Part C test cases (15 apps)             [spec §3]
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# Section 1 — Agent-level configuration
+# log_dir MUST stay under ~/.local/share/jiopc/agent/ (user space only;
+# nothing written to /tmp or system paths). [1]
+# ----------------------------------------------------------------------------
+agent:
+  log_dir: ~/.local/share/jiopc/agent/        # where test_run_<timestamp>.log is written
+  llm_prompt_file: ./prompts/analyse_log.txt  # prompt used by analyse.py
+  run_order: [A, B, C]                        # configurable order — spec allows reordering [1]
+
+
+# ----------------------------------------------------------------------------
+# Section 2 — Part A: Website & Web App Testing
+# Each entry: name, url, load-time threshold (ms), bot-detection flag,
+# and at least one UI element to verify (CSS selector). [1]
+#
+# A page that loads but shows a CAPTCHA = BLOCKED (never solved). [1]
+# A timeout / 4xx-5xx / crash = FAIL. [1]
+# ----------------------------------------------------------------------------
+web_apps:                       # Part A — exercises PASS, BLOCKED, and slow-load paths
+
+  # ---------- Reliable PASS cases (static, headless-friendly) ----------
+  - name: Example Domain
+    url: https://example.com
+    load_timeout_ms: 8000
+    bot_detection_expected: false
+    elements:
+      - selector: "h1"
+        description: main heading
+      - selector: "p"
+        description: body paragraph
+      - selector: "a"
+        description: "More information link"
+
+  - name: HTTPBin HTML
+    url: https://httpbin.org/html
+    load_timeout_ms: 8000
+    bot_detection_expected: false
+    elements:
+      - selector: "h1"
+        description: page heading
+      - selector: "p"
+        description: body paragraph
+
+  - name: Mozilla Developer Network
+    url: https://developer.mozilla.org/
+    load_timeout_ms: 10000
+    bot_detection_expected: false
+    elements:
+      - selector: "header"
+        description: top header bar
+      - selector: "input[type=search]"
+        description: search input
+      - selector: "main"
+        description: main content region
+
+  # ---------- JS-rendered element case (tests wait_for_selector logic) ----------
+  - name: Wikipedia
+    url: https://www.wikipedia.org
+    load_timeout_ms: 8000
+    bot_detection_expected: false
+    elements:
+      - selector: "#searchInput"
+        description: language-agnostic search box
+      - selector: ".central-featured"
+        description: featured languages block
+      - selector: "a[href*='wiki']"
+        description: at least one wiki link
+
+  # ---------- Consent-overlay case (tests dismiss_consent_overlays) ----------
+  - name: BBC News
+    url: https://www.bbc.com/news
+    load_timeout_ms: 10000
+    bot_detection_expected: false
+    elements:
+      - selector: "header"
+        description: top navigation bar
+      - selector: "a[href*='/news']"
+        description: at least one news link
+    # NOTE: BBC shows a GDPR consent banner that hides nav until dismissed.
+    # Stage 5 (dismiss_consent_overlays) handles this — useful real-world test.
+
+  # ---------- Expected BLOCKED case (tests Expected vs Unexpected reporting) ----
+  - name: Google Search
+    url: https://www.google.com
+    load_timeout_ms: 8000
+    bot_detection_expected: true
+    elements:
+      - selector: "input[name=q]"
+        description: search query input
+      - selector: "form"
+        description: search form
+    # Google often serves a bot-check to headless browsers.
+    # If BLOCKED → log says 'Expected BLOCKED' (matches YAML); not a HOLD trigger. [1]
+    # If PASS   → log notes 'bot_detection_expected=true but page rendered cleanly'.
+
+  # ---------- Tighter threshold to demonstrate slow-load flagging ----------
+  - name: GitHub Home
+    url: https://github.com
+    load_timeout_ms: 6000
+    bot_detection_expected: true
+    elements:
+      - selector: "header"
+        description: top header
+      - selector: "a[href='/login']"
+        description: sign-in link
+      - selector: "footer"
+        description: page footer
+
+  # ---------- Status-code FAIL case (deterministic 503 from httpbin) ----------
+  # Disabled by default — uncomment temporarily to verify the FAIL path,
+  # then re-comment before final clean runs / demo video. A FAIL flips the
+  # exit code to non-zero per the spec. [1]
+  # - name: Synthetic 503 (HTTP status FAIL test)
+  #   url: https://httpbin.org/status/503
+  #   load_timeout_ms: 5000
+  #   bot_detection_expected: false
+  #   elements:
+  #     - selector: "body"
+  #       description: any body element
+
+
+# ----------------------------------------------------------------------------
+# Section 3 — Part B: Native App Health Testing
+# Each entry: name, .desktop path, process name, launch timeout (s). [1]
+# Schema extras (contestant's choice per spec): health_check_delay_s,
+# cool_down_s — both support the T+5s snapshot and the recommended 2s
+# cool-down between consecutive checks to avoid resource contention. [1]
+#
+# All 15 entries below are GUI apps verified via VM scan (Exec= and
+# .desktop paths cross-checked). Console-only / non-staying-process apps
+# (Python, TeXInfo) intentionally excluded — they would produce false
+# DEGRADED results unrelated to OS Image regressions.
+# ----------------------------------------------------------------------------
+native_apps:                    # Part B — 15 GUI apps, sourced from VM scan
+
+  # --- Productivity (7) ---
+  - name: FeatherPad
+    desktop_file: /usr/share/applications/featherpad.desktop
+    process_name: featherpad
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: FeatherNotes
+    desktop_file: /usr/share/applications/feathernotes.desktop
+    process_name: feathernotes
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Text Editor
+    desktop_file: /usr/share/applications/org.gnome.TextEditor.desktop
+    process_name: gnome-text-editor
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Document Viewer
+    desktop_file: /usr/share/applications/org.gnome.Evince.desktop
+    process_name: evince
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: qpdfview
+    desktop_file: /usr/share/applications/qpdfview.desktop
+    process_name: qpdfview
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: PCManFM-Qt File Manager
+    desktop_file: /usr/share/applications/pcmanfm-qt.desktop
+    process_name: pcmanfm-qt
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Calculator
+    desktop_file: /usr/share/applications/org.gnome.Calculator.desktop
+    process_name: gnome-calculator
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  # --- Education (4) — real GUI apps only (Python/TeXInfo excluded) ---
+  - name: Character Map
+    desktop_file: /usr/share/applications/gucharmap.desktop
+    process_name: gucharmap
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Help
+    desktop_file: /usr/share/applications/yelp.desktop
+    process_name: yelp
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Disk Usage Analyzer
+    desktop_file: /usr/share/applications/org.gnome.baobab.desktop
+    process_name: baobab
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: Image Viewer
+    desktop_file: /usr/share/applications/org.gnome.eog.desktop
+    process_name: eog
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  # --- Games / Media (4) ---
+  - name: Audacious
+    desktop_file: /usr/share/applications/audacious.desktop
+    process_name: audacious
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: mpv Media Player
+    desktop_file: /usr/share/applications/mpv.desktop
+    process_name: mpv
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: SMPlayer
+    desktop_file: /usr/share/applications/smplayer.desktop
+    process_name: smplayer
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+  - name: LXImage-Qt
+    desktop_file: /usr/share/applications/lximage-qt.desktop
+    process_name: lximage-qt
+    launch_timeout_s: 10
+    health_check_delay_s: 5
+    cool_down_s: 2
+
+
+# ----------------------------------------------------------------------------
+# Section 4 — Part C: Start Menu & Desktop Presence
+# Read-only check. Each entry: name, expected desktop folder, expected
+# start menu category (matched against the .desktop Categories= field). [1]
+#
+# MISSING   = .desktop not found anywhere on the system. [1]
+# MISPLACED = found, but wrong desktop folder OR wrong start menu category. [1]
+#
+# All 15 entries match the Part B list one-to-one so the LLM analysis layer
+# can correlate findings across components (e.g. same app FAILs in B and is
+# MISPLACED in C). Categories taken verbatim from real .desktop files on
+# the VM scan.
+# ----------------------------------------------------------------------------
+desktop_presence:               # Part C — 15 apps, mirrors Part B
+
+   # --- Productivity (7) ---
+  - name: FeatherPad
+    desktop_folder: Productivity
+    start_menu_category: TextEditor        # Categories=Qt;Utility;TextEditor;
+
+  - name: FeatherNotes
+    desktop_folder: Productivity
+    start_menu_category: TextEditor        # Categories=Qt;Utility;TextEditor;
+
+  - name: Text Editor
+    desktop_folder: Productivity
+    start_menu_category: TextEditor        # Categories=GNOME;GTK;Utility;TextEditor;
+
+  - name: Document Viewer
+    desktop_folder: Productivity
+    start_menu_category: Office             # Categories=GNOME;GTK;Office;Viewer;Graphics;...
+
+  - name: qpdfview
+    desktop_folder: Productivity
+    start_menu_category: Office             # Categories=Viewer;Office;
+
+  - name: PCManFM-Qt File Manager
+    desktop_folder: Productivity
+    start_menu_category: FileManager        # Categories=FileManager;Utility;Core;Qt;
+
+  - name: Calculator
+    desktop_folder: Productivity
+    start_menu_category: Calculator         # Categories=GNOME;GTK;Utility;Calculator;
+
+  # --- Education (4) — aligned with Part B (Python/TeXInfo excluded) ---
+  - name: Character Map
+    desktop_folder: Education
+    start_menu_category: Utility            # Categories=GNOME;GTK;Utility;
+
+  - name: Help
+    desktop_folder: Education
+    start_menu_category: Documentation      # Categories=GNOME;GTK;Core;Documentation;Utility;
+
+  - name: Disk Usage Analyzer
+    desktop_folder: Education
+    start_menu_category: System             # Categories=GTK;GNOME;System;Filesystem;X-GNOME-Utilities;
+
+  - name: Image Viewer
+    desktop_folder: Education
+    start_menu_category: Graphics           # Categories=GNOME;GTK;Graphics;2DGraphics;RasterGraphics;Viewer;
+
+  # --- Games / Media (4) ---
+  - name: Audacious
+    desktop_folder: Games
+    start_menu_category: Player             # Categories=AudioVideo;Audio;Player;GTK;
+
+  - name: mpv Media Player
+    desktop_folder: Games
+    start_menu_category: Player             # Categories=AudioVideo;Audio;Video;Player;TV;
+
+  - name: SMPlayer
+    desktop_folder: Games
+    start_menu_category: Player             # Categories=Qt;AudioVideo;Player;Video;
+
+  - name: LXImage-Qt
+    desktop_folder: Games
+    start_menu_category: Graphics           # Categories=Graphics;Viewer;RasterGraphics;2DGraphics;Photography;

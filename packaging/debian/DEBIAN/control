@@ -1,0 +1,16 @@
+Package: jiopc-agent
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.11), python3-pip, python3-venv, xvfb, ca-certificates
+Maintainer: Ambika <sambika1101@gmail.com>
+Description: JioPC Automated Testing Agent
+ Scripted validation framework that verifies web app reachability, native
+ app health, and start menu / desktop app presence on a freshly patched
+ JioPC OS Image. Produces a structured JSON Lines log consumed by a
+ model-agnostic LLM analysis layer for a PROMOTE / HOLD recommendation.
+ .
+ This package installs the runner, three component modules, the default
+ YAML configuration, and the LLM analysis prompt and script. Xvfb is
+ pulled in as a runtime dependency for Part B GUI app isolation.
