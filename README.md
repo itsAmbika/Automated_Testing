@@ -457,5 +457,5 @@ directories.
 ---
 
 **Team:** Ambika Soni
-**Members:** Ambika 23b0011 , Khushi Garg 23b0077
+**Members:** Ambika 23b0011
 **Challenge:** CHALLENGE-02 — Automated Testing Agent 
